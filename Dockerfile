@@ -1,27 +1,29 @@
-# --- Build Stage ---
-# 互換性の高いDebianベースのNode 14を使用
-FROM node:14-buster as build
+# Node v10を使用（このアプリの開発当時のバージョン）
+FROM node:10-buster as build
 
 WORKDIR /app
 
-# 依存関係ファイルをコピー
-COPY package*.json yarn.lock ./
+# gitが必要なためインストール
+RUN apt-get update && apt-get install -y git
 
-# 依存関係のインストール（--forceで警告を無視して強制実行）
-RUN npm install --legacy-peer-deps --force
+# 依存関係ファイルをコピー
+COPY package.json yarn.lock ./
+
+# yarnを使ってインストール（npmより互換性が高い）
+# ignore-enginesでバージョンの不一致を無視
+RUN yarn install --ignore-engines
 
 # ソースコードをコピー
 COPY . .
 
-# 環境変数をセットしてビルド（CI=falseで警告による停止を防ぐ）
+# 環境変数をセットしてビルド
 ENV CI=false
-RUN npm run build
+RUN yarn build
 
 # --- Production Stage ---
-# ビルド成果物をNginxで配信
 FROM nginx:alpine
 
-# Nginxの公開フォルダにビルド済みファイルを配置
+# ビルド成果物をNginxの公開フォルダにコピー
 COPY --from=build /app/build /usr/share/nginx/html
 
 # ポート80を開放
